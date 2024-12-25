@@ -1,0 +1,14 @@
+add_binary(
+NAME
+    sgemm
+HDRS
+    "${CMAKE_SOURCE_DIR}/include"
+SRCS
+    "sgemm.cc"
+COPTS
+    ${CAFFE_TEST_COPTS}
+DEPS
+    glog::glog
+    cudart
+    cublas
+)

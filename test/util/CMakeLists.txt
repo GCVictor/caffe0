@@ -1,0 +1,13 @@
+caffe_add_test(
+  NAME
+    math_functions_test
+  HDRS
+    "${MKL_INCLUDE_DIRS}"
+    "${glog_INCLUDE_DIR}"
+  SRCS
+    "math_functions_test.cc"
+  COPTS
+  DEPS
+  ${GLOG_LIBRARIES}
+  caffe::util
+)
