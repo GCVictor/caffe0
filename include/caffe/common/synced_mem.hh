@@ -69,7 +69,12 @@ class SyncedMemory {
   constexpr SyncHead head() const { return head_; }
 
   /// \return The size of the memory in bytes.
-  constexpr std::size_t size() const { return size_; }
+  constexpr size_t size() const { return size_; }
+
+  /// \brief Get the size of the memory block, expressed in bytes.
+  ///
+  /// \return The size of the memory in bytes.
+  constexpr size_t size_in_bytes() const { return size_; }
 
  private:
   /// Verifies that the memory is on the correct GPU device.
