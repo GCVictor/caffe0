@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CAFFE_TEST_COPTS -Wall -Wextra -Werror -g)
 set(CAFFE_LIB_COPTS -Wall -Wextra -Werror)
 set(CAFFE_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/include")
+set(PROTO_GEN_DIR ${CMAKE_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(FindLibUnwind)

@@ -4,7 +4,7 @@ package caffe;
 
 // Specifies the shape (dimensions) of a Blob.
 message BlobShape {
-  repeated int64 dim = 1;
+  repeated int32 dim = 1;
 }
 
 message BlobProto {

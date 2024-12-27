@@ -4,60 +4,35 @@ namespace caffe {
 
 inline constexpr int kMaxTensorDims = 32;
 
-// void Tensor::Reshape(const TensorShape& shape) {
-//   CHECK_LE(shape.NumDimensions(), kMaxTensorDims);
-//   CHECK(shape_.ReshapeTo(shape));
-// }
-
 template <>
 void Blob<double>::ToProto(BlobProto& proto, bool write_diff) const {
-  proto.clear_shape();
+  auto dim_data = proto.mutable_shape()->mutable_dim();
+  dim_data->Resize(NumDims(), {});
+  CopyShape(dim_data->begin());
 
-  for (int i = 0; i < shape_.size(); ++i) {
-    proto.mutable_shape()->add_dim(shape_.DimAt(i));
-  }
-
-  proto.clear_double_data();
-  proto.clear_double_diff();
-
-  auto data_vec = CpuData();
-
-  for (int i = 0; i < count_; ++i) {
-    proto->add_double_data(data_vec[i]);
-  }
+  auto count = TotalDimProduct();
+  proto.mutable_double_data()->Resize(count, {});
+  CopyData(proto.mutable_double_data()->begin());
 
   if (write_diff) {
-    auto diff_vec = CpuDiff();
-
-    for (int i = 0; i < count_; ++i) {
-      proto->add_double_diff(diff_vec[i]);
-    }
+    proto.mutable_double_diff()->Resize(count, {});
+    CopyDiff(proto.mutable_double_diff()->begin());
   }
 }
 
 template <>
 void Blob<float>::ToProto(BlobProto& proto, bool write_diff) const {
-  proto->clear_shape();
+  auto dim_data = proto.mutable_shape()->mutable_dim();
+  dim_data->Resize(NumDims(), {});
+  CopyShape(dim_data->begin());
 
-  for (int i = 0; i < shape_.size(); ++i) {
-    proto->mutable_shape()->add_dim(shape_[i]);
-  }
-
-  proto->clear_data();
-  proto->clear_diff();
-
-  auto data_vec = CpuData();
-
-  for (int i = 0; i < count_; ++i) {
-    proto->add_data(data_vec[i]);
-  }
+  auto count = TotalDimProduct();
+  proto.mutable_data()->Resize(count, {});
+  CopyData(proto.mutable_data()->begin());
 
   if (write_diff) {
-    auto diff_vec = CpuDiff();
-
-    for (int i = 0; i < count_; ++i) {
-      proto->add_diff(diff_vec[i]);
-    }
+    proto.mutable_diff()->Resize(count, {});
+    CopyDiff(proto.mutable_diff()->begin());
   }
 }
 

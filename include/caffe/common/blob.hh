@@ -1,61 +1,53 @@
 #pragma once
 
+#include <glog/logging.h>
+
 #include <initializer_list>
 #include <memory>
 #include <numeric>
-#include <type_traits>
 #include <vector>
 
 #include "caffe.pb.h"
 #include "caffe/common/synced_mem.hh"
-#include "caffe/util/macros.hh"
 
 namespace caffe {
-
-template <bool... bs>
-struct all_of {
-  static constexpr bool value = (bs && ...);
-};
 
 template <typename Dtype>
 class Blob {
  public:
   class Shape {
    public:
-    template <typename... Dims,
-              typename =
-                  std::enable_if_t<all_of<std::is_same_v<int, Dims>...>::value>>
-    Shape(Dims&&... dims) : data_{std::forward<Dims>(dims)...} {}
+    explicit Shape(std::initializer_list<int> dims) : dims_{dims} {
+      total_dim_ = ComputeTotalDimProduct();
+    }
 
-    explicit Shape(std::initializer_list<int> dims) : data_{dims} {}
-    explicit Shape(const std::vector<int>& dims) : data_{dims} {}
+    explicit Shape(const std::vector<int>& dims) : dims_{dims} {
+      total_dim_ = ComputeTotalDimProduct();
+    }
 
     constexpr int DimAt(size_t index) const {
-      CHECK_LE(index, data_.size());
+      CHECK_LE(index, dims_.size());
 
-      return data_[index];
+      return dims_[index];
     }
 
     /// \return The number of dimensions (axes) of the tensor.
-    constexpr int NumDimensions() const { return data_.size(); }
+    constexpr int NumDimensions() const { return dims_.size(); }
 
     /// \return The total product of dimensions.
-    constexpr int GetTotalDimProduct() const {
-      return std::accumulate(data_.begin(), data_.end(), 1,
-                             std::multiplies<int>{});
-    }
+    constexpr int TotalDimProduct() const { return total_dim_; }
 
     constexpr bool HasEqualSize(const Shape& other) const {
-      return GetTotalSize() == other.GetTotalSize();
+      return TotalDimProduct() == other.TotalDimProduct();
     }
 
     bool ReshapeTo(const Shape& other) {
-      auto ssize = GetTotalDimProduct();
-      auto osize = other.GetTotalDimProduct();
+      auto ssize = TotalDimProduct();
+      auto osize = other.TotalDimProduct();
 
       // Case 1: self and other sizes are matched.
       if (ssize == osize) {
-        data_ = other.data_;
+        dims_ = other.dims_;
 
         return true;
       }
@@ -63,40 +55,34 @@ class Blob {
       // Case 2: no -1 is found (more -1s are found) or the remaining size is
       // not
       //         divisible.
-      if (std::count(other.data_.begin(), other.data_.end(), -1) != 1 ||
+      if (std::count(other.dims_.begin(), other.dims_.end(), -1) != 1 ||
           ssize % osize != 0) {
         return false;
       }
 
-      data_ = other.data_;
-      auto it = std::find(data_.begin(), data_.end(), -1);
+      dims_ = other.dims_;
+      auto it = std::find(dims_.begin(), dims_.end(), -1);
       *it = ssize / osize;
 
       return true;
     }
 
     constexpr bool IsValid() const {
-      return std::all_of(data_.begin(), data_.end(),
+      return std::all_of(dims_.begin(), dims_.end(),
                          [](int dim) { return dim > 0; });
     }
 
+    const std::vector<int>& dims() const { return dims_; }
+
    private:
-    std::vector<int> data_;
-  };
-
-  Blob(const Shape& shape, bool requires_diff = false) : shape_{shape} {
-    CHECK(shape.IsValid());
-
-    count_ = shape.GetTotalDimProduct();
-    auto nbytes = count_ * sizeof(Dtype);
-    data_ = std::make_shared<SyncedMemory>(nbytes);
-    shape_data_ =
-        std::make_shared<SyncedMemory>(shape.NumDimensions() * sizeof(int));
-
-    if (requires_diff) {
-      diff_ = std::make_shared<SyncedMemory>(nbytes);
+    constexpr int ComputeTotalDimProduct() const {
+      return std::accumulate(dims_.begin(), dims_.end(), 1,
+                             std::multiplies<int>{});
     }
-  }
+
+    int total_dim_;
+    std::vector<int> dims_;
+  };
 
   /// \brief Reshape the tensor with the specified shape.
   ///
@@ -112,38 +98,39 @@ class Blob {
     Blob<Dtype> blob{proto.shape(), requires_diff};
 
     // Copy data.
-    auto data_vec = static_cast<Dtype*>(blob.data_->mutable_cpu_ptr());
+    auto count = blob.TotalDimProduct();
+    auto dims_vec = static_cast<Dtype*>(blob.dims_->mutable_cpu_ptr());
 
     if (proto.double_data_size() > 0) {
-      CHECK_EQ(count_, proto.double_data_size());
+      CHECK_EQ(count, proto.double_data_size());
 
       // TODO(gc): use simd to accelerate.
-      for (int i = 0; i < count_; ++i) {
-        data_vec[i] = proto.double_data(i);
+      for (int i = 0; i < count; ++i) {
+        dims_vec[i] = proto.double_data(i);
       }
     } else {
-      CHECK_EQ(count_, proto.data_size());
+      CHECK_EQ(count, proto.data_size());
 
-      for (int i = 0; i < count_; ++i) {
-        data_vec[i] = proto.data(i)
+      for (int i = 0; i < count; ++i) {
+        dims_vec[i] = proto.data(i);
       };
     }
 
     // Copy diff.
     if (proto.double_diff_size()) {
-      CHECK_EQ(count_, proto.double_diff_size());
+      CHECK_EQ(count, proto.double_diff_size());
 
       auto diff_vec = static_cast<Dtype*>(blob.diff_->mutable_cpu_ptr());
 
-      for (int i = 0; i < count_; ++i) {
+      for (int i = 0; i < count; ++i) {
         diff_vec[i] = proto.double_diff(i);
       }
     } else if (proto.diff_size()) {
-      CHECK_EQ(count_, proto.diff_size());
+      CHECK_EQ(count, proto.diff_size());
 
       auto diff_vec = static_cast<Dtype*>(blob.diff_->mutable_cpu_ptr());
 
-      for (int i = 0; i < count_; ++i) {
+      for (int i = 0; i < count; ++i) {
         diff_vec[i] = proto.diff(i);
       }
     }
@@ -151,9 +138,40 @@ class Blob {
     return blob;
   }
 
+  explicit Blob(const Shape& shape, bool requires_diff = true) : shape_{shape} {
+    CHECK(shape.IsValid());
+
+    auto count = shape.TotalDimProduct();
+    auto nbytes = count * sizeof(Dtype);
+    data_ = std::make_shared<SyncedMemory>(nbytes);
+
+    if (requires_diff) {
+      diff_ = std::make_shared<SyncedMemory>(nbytes);
+    }
+  }
+
+  constexpr int NumDims() const { return shape_.NumDimensions(); }
+  constexpr int TotalDimProduct() const { return shape_.TotalDimProduct(); }
+
   void ToProto(BlobProto& proto, bool write_diff = false) const {}
 
  private:
+  void CopyData(Dtype* dst) const {
+    auto cpu_data = CpuData();
+
+    std::copy_n(cpu_data, TotalDimProduct(), dst);
+  }
+
+  void CopyDiff(Dtype* dst) const {
+    auto cpu_diff = CpuDiff();
+
+    std::copy_n(cpu_diff, TotalDimProduct(), dst);
+  }
+
+  void CopyShape(int* dst) const {
+    std::copy_n(shape_.dims().begin(), NumDims(), dst);
+  }
+
   const Dtype* CpuData() const {
     CHECK(data_);
 
@@ -204,10 +222,7 @@ class Blob {
 
   std::shared_ptr<SyncedMemory> data_;
   std::shared_ptr<SyncedMemory> diff_;
-  std::shared_ptr<SyncedMemory> shape_data_;
   Shape shape_;
-  int count_;
-  // int capacity_;
 };
 
 }  // namespace caffe
