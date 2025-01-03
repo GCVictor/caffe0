@@ -6,35 +6,11 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <iostream>
 
 namespace caffe {
 
 // cudaDeviceProp CAFFE_TEST_CUDA_PROP;
 
+typedef ::testing::Types<float, double> TestDtypes;
+
 }  // namespace caffe
-
-using namespace caffe;
-using namespace std;
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  ::google::InitGoogleLogging(argv[0]);
-  // Before starting testing, let's first print out a few cuda defice info.
-  // int device;
-  // cudaGetDeviceCount(&device);
-  // cout << "Cuda number of devices: " << device << endl;
-
-  // if (argc > 1) {
-  //   // Use the given device
-  //   device = atoi(argv[1]);
-  //   cudaSetDevice(device);
-  //   cout << "Setting to use device " << device << endl;
-  // }
-
-  // cudaGetDevice(&device);
-  // cout << "Current device id: " << device << endl;
-  // cudaGetDeviceProperties(&CAFFE_TEST_CUDA_PROP, device);
-  // invoke the test.
-  return RUN_ALL_TESTS();
-}

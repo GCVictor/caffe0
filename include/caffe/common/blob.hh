@@ -107,31 +107,29 @@ class Blob {
 
     // Copy data.
     auto numel = blob.NumElement();
-    auto cpu_data = blob.MutableCpuData();
+    auto data = blob.GetMutableData();
 
     if (proto.double_data_size() > 0) {
       CHECK_EQ(numel, proto.double_data_size());
 
-      std::copy(proto.double_data().begin(), proto.double_data().end(),
-                cpu_data);
+      std::copy(proto.double_data().begin(), proto.double_data().end(), data);
     } else {
       CHECK_EQ(numel, proto.data_size());
 
-      std::copy(proto.data().begin(), proto.data().end(), cpu_data);
+      std::copy(proto.data().begin(), proto.data().end(), data);
     }
 
     // Copy diff.
-    auto cpu_diff = blob.MutableCpuDiff();
+    auto diff = blob.GetMutableDiff();
 
     if (proto.double_diff_size()) {
       CHECK_EQ(numel, proto.double_diff_size());
 
-      std::copy(proto.double_diff().begin(), proto.double_diff().end(),
-                cpu_diff);
+      std::copy(proto.double_diff().begin(), proto.double_diff().end(), diff);
     } else if (proto.diff_size()) {
       CHECK_EQ(numel, proto.diff_size());
 
-      std::copy(proto.diff().begin(), proto.diff().end(), cpu_diff);
+      std::copy(proto.diff().begin(), proto.diff().end(), diff);
     }
 
     return blob;
@@ -193,6 +191,27 @@ class Blob {
   /// \return The total number of elements.
   int NumElement() const { return shape_.numel(); }
 
+  /// \brief Transfers the data and the diff to the GPU.
+  void ToGPU() const {
+    CHECK_NOTNULL(data_);
+
+    data_->ToGPU();
+
+    if (diff_) {
+      diff_->ToGPU();
+    }
+  }
+
+  /// \brief Serializes the Blob data and the diff into a protocol buffer
+  ///        message.
+  ///
+  /// This method converts the Blob's data (and optionally the diff) into a
+  /// protocol buffer message (`BlobProto`). This is typically used for saving
+  /// the Blob's state to disk or transmitting it over a network.
+  ///
+  /// \param proto The protocol buffer message to store the serialized data.
+  /// \param write_diff If true, the diff (gradients) will also be serialized;
+  ///                   otherwise, only data is serialized.
   void ToProto(BlobProto& proto, bool write_diff = false) const;
 
  private:
@@ -217,9 +236,9 @@ class Blob {
   /// \param dst A pointer to the destination buffer where the data will be
   ///            copied.
   void CopyDataTo(Dtype* dst) const {
-    auto cpu_data = CpuData();
+    auto data = GetData();
 
-    std::copy_n(cpu_data, NumElement(), dst);
+    std::copy_n(data, NumElement(), dst);
   }
 
   /// \brief Copies the diff (gradients) stored in the Blob to a destination
@@ -228,9 +247,60 @@ class Blob {
   /// \param dst A pointer to the destination buffer where the diff will be
   ///            copied.
   void CopyDiffTo(Dtype* dst) const {
-    auto cpu_diff = CpuDiff();
+    auto diff = GetDiff();
 
-    std::copy_n(cpu_diff, NumElement(), dst);
+    std::copy_n(diff, NumElement(), dst);
+  }
+
+  /// \brief Returns a pointer to the data in SyncedMemory based on its current
+  ///        state (CPU or GPU).
+  ///
+  /// \param sync_mem A pointer to the SyncedMemory object.
+  /// \return A pointer to the data (CPU or GPU).
+  static auto GetSyncedMemoryPtr(SyncedMemory* sync_mem) {
+    CHECK_NOTNULL(sync_mem);
+
+    if (sync_mem->IsOnGPU()) {
+      return sync_mem->gpu_ptr();
+    } else {
+      return sync_mem->cpu_ptr();
+    }
+  }
+
+  /// \brief Returns a const pointer to the data (read-only).
+  ///
+  /// \return A const pointer to the data.
+  auto GetData() const {
+    CHECK_NOTNULL(data_);
+
+    return static_cast<const Dtype*>(GetSyncedMemoryPtr(data_.get()));
+  }
+
+  /// \brief Returns a mutable pointer to the data (read-write).
+  ///
+  /// \return A mutable pointer to the data.
+  auto GetMutableData() {
+    CHECK_NOTNULL(data_);
+
+    return static_cast<Dtype*>(GetSyncedMemoryPtr(data_.get()));
+  }
+
+  /// \brief Returns a const pointer to the diff (gradients, read-only).
+  ///
+  /// \return A const pointer to the diff.
+  auto GetDiff() const {
+    CHECK_NOTNULL(diff_);
+
+    return static_cast<const Dtype*>(GetSyncedMemoryPtr(diff_.get()));
+  }
+
+  /// \brief Returns a mutable pointer to the diff (gradients, read-write).
+  ///
+  /// \return A mutable pointer to the diff.
+  auto GetMutableDiff() {
+    CHECK_NOTNULL(diff_);
+
+    return static_cast<Dtype*>(GetSyncedMemoryPtr(diff_.get()));
   }
 
   /// \brief Copies the shape dimensions of the Blob to a destination buffer.
@@ -238,82 +308,6 @@ class Blob {
   /// \param dst A pointer to the destination buffer where the shape dimensions
   ///            will be copied.
   void CopyShapeTo(int* dst) const { std::copy_n(shape_.begin(), NDim(), dst); }
-
-  /// \brief Returns a const pointer to the data stored in CPU memory.
-  ///
-  /// \return A const pointer to the CPU data.
-  const Dtype* CpuData() const {
-    CHECK_NOTNULL(data_);
-
-    return static_cast<const Dtype*>(data_->cpu_ptr());
-  }
-
-  /// \brief Returns a mutable pointer to the data stored in CPU memory.
-  ///
-  /// \return A mutable pointer to the CPU data.
-  Dtype* MutableCpuData() {
-    CHECK_NOTNULL(data_);
-
-    return static_cast<Dtype*>(data_->mutable_cpu_ptr());
-  }
-
-  /// \brief Returns a const pointer to the diff (gradients) stored in CPU
-  ///        memory.
-  ///
-  /// \return A const pointer to the CPU diff.
-  const Dtype* CpuDiff() const {
-    CHECK_NOTNULL(diff_);
-
-    return static_cast<const Dtype*>(diff_->cpu_ptr());
-  }
-
-  /// \brief Returns a mutable pointer to the diff (gradients) stored in CPU
-  ///        memory.
-  ///
-  /// \return A mutable pointer to the CPU diff.
-  Dtype* MutableCpuDiff() {
-    CHECK_NOTNULL(diff_);
-
-    return static_cast<Dtype*>(diff_->mutable_cpu_ptr());
-  }
-
-  /// \brief Returns a const pointer to the data stored in GPU memory.
-  ///
-  /// \return A const pointer to the GPU data.
-  const Dtype* GpuData() const {
-    CHECK_NOTNULL(data_);
-
-    return static_cast<const Dtype*>(data_->gpu_ptr());
-  }
-
-  /// \brief Returns a mutable pointer to the data stored in GPU memory.
-  ///
-  /// \return A mutable pointer to the GPU data.
-  Dtype* MutableGpuData() {
-    CHECK_NOTNULL(data_);
-
-    return static_cast<Dtype*>(data_->mutable_gpu_ptr());
-  }
-
-  /// \brief Returns a const pointer to the diff (gradients) stored in GPU
-  ///        memory.
-  ///
-  /// \return A const pointer to the GPU diff.
-  const Dtype* GpuDiff() const {
-    CHECK_NOTNULL(diff_);
-
-    return static_cast<const Dtype*>(diff_->gpu_ptr());
-  }
-
-  /// \brief Returns a mutable pointer to the diff (gradients) stored in GPU
-  ///        memory.
-  ///
-  /// \return A mutable pointer to the GPU diff.
-  Dtype* MutableGpuDiff() {
-    CHECK_NOTNULL(diff_);
-
-    return static_cast<Dtype*>(diff_->mutable_gpu_ptr());
-  }
 
   std::shared_ptr<SyncedMemory> data_;  ///< Pointer to the data memory.
   std::shared_ptr<SyncedMemory> diff_;  ///< Pointer to the diff memory.

@@ -35,6 +35,18 @@ class SyncedMemory {
   /// Ensures that the memory is available on the GPU.
   void ToGPU();
 
+  /// \brief Checks if the data is currently on the GPU.
+  ///
+  /// This function determines whether the data is stored on the GPU by checking
+  /// the current state of the `head_` flag. The data is considered to be on the
+  /// GPU if the `head_` flag is either `kSynced` (data is synchronized between
+  /// CPU and GPU) or `kAtGPU` (data is only on the GPU).
+  ///
+  /// \return `true` if the data is on the GPU; otherwise, `false`.
+  constexpr bool IsOnGPU() const {
+    return head_ == SyncedMemory::kSynced || head_ == SyncedMemory::kAtGPU;
+  }
+
   /// \return A constant pointer to the CPU memory.
   const void* cpu_ptr() {
     ToCPU();
