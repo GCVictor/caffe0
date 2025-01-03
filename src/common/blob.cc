@@ -2,37 +2,35 @@
 
 namespace caffe {
 
-inline constexpr int kMaxTensorDims = 32;
-
 template <>
 void Blob<double>::ToProto(BlobProto& proto, bool write_diff) const {
   auto dim_data = proto.mutable_shape()->mutable_dim();
-  dim_data->Resize(NumDims(), {});
-  CopyShape(dim_data->begin());
+  dim_data->Resize(NDim(), {});
+  CopyShapeTo(dim_data->begin());
 
-  auto count = TotalDimProduct();
-  proto.mutable_double_data()->Resize(count, {});
-  CopyData(proto.mutable_double_data()->begin());
+  auto numel = NumElement();
+  proto.mutable_double_data()->Resize(numel, {});
+  CopyDataTo(proto.mutable_double_data()->begin());
 
   if (write_diff) {
-    proto.mutable_double_diff()->Resize(count, {});
-    CopyDiff(proto.mutable_double_diff()->begin());
+    proto.mutable_double_diff()->Resize(numel, {});
+    CopyDiffTo(proto.mutable_double_diff()->begin());
   }
 }
 
 template <>
 void Blob<float>::ToProto(BlobProto& proto, bool write_diff) const {
   auto dim_data = proto.mutable_shape()->mutable_dim();
-  dim_data->Resize(NumDims(), {});
-  CopyShape(dim_data->begin());
+  dim_data->Resize(NDim(), {});
+  CopyShapeTo(dim_data->begin());
 
-  auto count = TotalDimProduct();
-  proto.mutable_data()->Resize(count, {});
-  CopyData(proto.mutable_data()->begin());
+  auto numel = NumElement();
+  proto.mutable_data()->Resize(numel, {});
+  CopyDataTo(proto.mutable_data()->begin());
 
   if (write_diff) {
-    proto.mutable_diff()->Resize(count, {});
-    CopyDiff(proto.mutable_diff()->begin());
+    proto.mutable_diff()->Resize(numel, {});
+    CopyDiffTo(proto.mutable_diff()->begin());
   }
 }
 
