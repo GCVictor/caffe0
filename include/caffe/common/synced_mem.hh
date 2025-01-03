@@ -13,8 +13,8 @@ class SyncedMemory {
  public:
   enum SyncHead {
     kUninitialized,  ///< Memory is not initialized.
-    kAtCpu,          ///< Memory is synchronized to the CPU.
-    kAtGpu,          ///< Memory is synchronized to the GPU.
+    kAtCPU,          ///< Memory is synchronized to the CPU.
+    kAtGPU,          ///< Memory is synchronized to the GPU.
     kSynced,         ///< Memory is synchronized between CPU and GPU.
   };
 
@@ -30,37 +30,37 @@ class SyncedMemory {
   ~SyncedMemory();
 
   /// Ensures that the memory is available on the CPU.
-  void ToCpu();
+  void ToCPU();
 
   /// Ensures that the memory is available on the GPU.
-  void ToGpu();
+  void ToGPU();
 
   /// \return A constant pointer to the CPU memory.
   const void* cpu_ptr() {
-    ToCpu();
+    ToCPU();
 
     return cpu_ptr_;
   }
 
   /// \return A constant pointer to the GPU memory.
   const void* gpu_ptr() {
-    ToGpu();
+    ToGPU();
 
     return gpu_ptr_;
   }
 
   /// \return A mutable pointer to the CPU memory.
   void* mutable_cpu_ptr() {
-    ToCpu();
-    head_ = SyncHead::kAtCpu;
+    ToCPU();
+    head_ = SyncHead::kAtCPU;
 
     return cpu_ptr_;
   }
 
   /// \return A mutable pointer to the GPU memory.
   void* mutable_gpu_ptr() {
-    ToGpu();
-    head_ = SyncHead::kAtGpu;
+    ToGPU();
+    head_ = SyncHead::kAtGPU;
 
     return gpu_ptr_;
   }

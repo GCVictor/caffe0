@@ -23,7 +23,7 @@ TEST_F(SyncedMemoryTest, Initialization) {
 
 #ifndef CPU_ONLY
 
-TEST_F(SyncedMemoryTest, AllocationToCpuAndGpu) {
+TEST_F(SyncedMemoryTest, AllocationToCPUAndGPU) {
   SyncedMemory mem(10);
 
   EXPECT_TRUE(nullptr != mem.cpu_ptr());
@@ -34,7 +34,7 @@ TEST_F(SyncedMemoryTest, AllocationToCpuAndGpu) {
 
 #endif
 
-TEST_F(SyncedMemoryTest, AllocationToCpu) {
+TEST_F(SyncedMemoryTest, AllocationToCPU) {
   SyncedMemory mem(10);
 
   EXPECT_TRUE(mem.cpu_ptr());
@@ -43,7 +43,7 @@ TEST_F(SyncedMemoryTest, AllocationToCpu) {
 
 #ifndef CPU_ONLY
 
-TEST_F(SyncedMemoryTest, AllocationToGpu) {
+TEST_F(SyncedMemoryTest, AllocationToGPU) {
   SyncedMemory mem(10);
 
   EXPECT_TRUE(mem.gpu_ptr());
@@ -52,11 +52,11 @@ TEST_F(SyncedMemoryTest, AllocationToGpu) {
 
 #endif
 
-TEST_F(SyncedMemoryTest, CpuWrite) {
+TEST_F(SyncedMemoryTest, CPUWrite) {
   SyncedMemory mem(10);
   auto cpu_data = mem.mutable_cpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtCpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtCPU, mem.head());
 
   memset(cpu_data, 1, mem.size());
 
@@ -67,7 +67,7 @@ TEST_F(SyncedMemoryTest, CpuWrite) {
   // Do another round.
   cpu_data = mem.mutable_cpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtCpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtCPU, mem.head());
 
   memset(cpu_data, 2, mem.size());
 
@@ -78,11 +78,11 @@ TEST_F(SyncedMemoryTest, CpuWrite) {
 
 #ifndef CPU_ONLY
 
-TEST_F(SyncedMemoryTest, GpuRead) {
+TEST_F(SyncedMemoryTest, GPURead) {
   SyncedMemory mem(10);
   auto cpu_data = mem.mutable_cpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtCpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtCPU, mem.head());
 
   memset(cpu_data, 1, mem.size());
   auto gpu_data = mem.gpu_ptr();
@@ -100,7 +100,7 @@ TEST_F(SyncedMemoryTest, GpuRead) {
   // Do another round.
   cpu_data = mem.mutable_cpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtCpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtCPU, mem.head());
 
   memset(cpu_data, 2, mem.size());
 
@@ -120,11 +120,11 @@ TEST_F(SyncedMemoryTest, GpuRead) {
   }
 }
 
-TEST_F(SyncedMemoryTest, GpuWrite) {
+TEST_F(SyncedMemoryTest, GPUWrite) {
   SyncedMemory mem(10);
   auto gpu_data = mem.mutable_gpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtGpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtGPU, mem.head());
 
   gpu::caffe_memset(gpu_data, 1, mem.size());
   auto cpu_data = mem.cpu_ptr();
@@ -137,7 +137,7 @@ TEST_F(SyncedMemoryTest, GpuWrite) {
 
   gpu_data = mem.mutable_gpu_ptr();
 
-  EXPECT_EQ(SyncedMemory::kAtGpu, mem.head());
+  EXPECT_EQ(SyncedMemory::kAtGPU, mem.head());
 
   gpu::caffe_memset(gpu_data, 2, mem.size());
   cpu_data = mem.cpu_ptr();

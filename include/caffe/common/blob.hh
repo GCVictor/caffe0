@@ -41,14 +41,13 @@ class Blob {
 
       auto [quot, rem] = std::div(numel(), other.numel());
 
-      // Case 2: no -1 is found (more -1s are found) or the remaining size is
-      // not divisible.
-      if (std::count(other.DimBegin(), other.DimEnd(), -1) != 1 || rem != 0) {
+      // Either no -1 is found (more -1s are found) or size is not divisible.
+      if (std::count(other.begin(), other.end(), -1) != 1 || rem != 0) {
         return false;
       }
 
       dims_ = other.dims_;
-      auto it = std::find(DimBegin(), DimEnd(), -1);
+      auto it = std::find(begin(), end(), -1);
       *it = -quot;
 
       return true;
@@ -58,14 +57,21 @@ class Blob {
     ///
     /// \return True if all dimensions are positive; otherwise false.
     constexpr bool IsValid() const {
-      return std::all_of(DimBegin(), DimEnd(), [](int dim) { return dim > 0; });
+      return std::all_of(begin(), end(), [](int dim) { return dim > 0; });
     }
 
     /// \return The total number of elements in this shape.
     constexpr int numel() const { return num_el_; }
 
-    auto DimBegin() const { return dims_.begin(); }
-    auto DimEnd() const { return dims_.end(); }
+    /// \brief Returns an iterator to the beginning of the dimensions.
+    ///
+    /// \return An iterator to the beginning of the dimensions.
+    auto begin() const { return dims_.begin(); }
+
+    /// \brief Returns an iterator to the end of the dimensions.
+    ///
+    /// \return An iterator to the end of the dimensions.
+    auto end() const { return dims_.end(); }
 
     /// \return The number of dimensions in this shape.
     constexpr int NDim() const { return dims_.size(); }
@@ -75,7 +81,7 @@ class Blob {
     /// \param index The index of the dimension to retrieve.
     /// \return The dimension at the specified index.
     constexpr int DimAt(size_t index) const {
-      CHECK_LE(index, NDim());
+      CHECK_LT(index, NDim());
 
       return dims_[index];
     }
@@ -83,7 +89,7 @@ class Blob {
    private:
     /// \return The total product of the dimensions.
     constexpr int ComputeNumel() const {
-      return std::accumulate(DimBegin(), DimEnd(), 1, std::multiplies<int>{});
+      return std::accumulate(begin(), end(), 1, std::multiplies<int>{});
     }
 
     int num_el_;
@@ -91,51 +97,50 @@ class Blob {
   };
 
  public:
+  /// \brief Creates a Blob object from a protocol buffer message.
+  ///
+  /// \param proto The protocol buffer message containing the Blob data.
+  /// \return A Blob object initialized with the data from the protocol buffer.
   static Blob<Dtype> FromProto(const BlobProto& proto) {
     auto requires_diff = proto.double_diff_size() > 0 || proto.diff_size() > 0;
     Blob<Dtype> blob{proto.shape(), requires_diff};
 
     // Copy data.
-    auto count = blob.TotalDimProduct();
-    auto dims_vec = static_cast<Dtype*>(blob.dims_->mutable_cpu_ptr());
+    auto numel = blob.NumElement();
+    auto cpu_data = blob.MutableCpuData();
 
     if (proto.double_data_size() > 0) {
-      CHECK_EQ(count, proto.double_data_size());
+      CHECK_EQ(numel, proto.double_data_size());
 
-      // TODO(gc): use simd to accelerate.
-      for (int i = 0; i < count; ++i) {
-        dims_vec[i] = proto.double_data(i);
-      }
+      std::copy(proto.double_data().begin(), proto.double_data().end(),
+                cpu_data);
     } else {
-      CHECK_EQ(count, proto.data_size());
+      CHECK_EQ(numel, proto.data_size());
 
-      for (int i = 0; i < count; ++i) {
-        dims_vec[i] = proto.data(i);
-      };
+      std::copy(proto.data().begin(), proto.data().end(), cpu_data);
     }
 
     // Copy diff.
+    auto cpu_diff = blob.MutableCpuDiff();
+
     if (proto.double_diff_size()) {
-      CHECK_EQ(count, proto.double_diff_size());
+      CHECK_EQ(numel, proto.double_diff_size());
 
-      auto diff_vec = static_cast<Dtype*>(blob.diff_->mutable_cpu_ptr());
-
-      for (int i = 0; i < count; ++i) {
-        diff_vec[i] = proto.double_diff(i);
-      }
+      std::copy(proto.double_diff().begin(), proto.double_diff().end(),
+                cpu_diff);
     } else if (proto.diff_size()) {
-      CHECK_EQ(count, proto.diff_size());
+      CHECK_EQ(numel, proto.diff_size());
 
-      auto diff_vec = static_cast<Dtype*>(blob.diff_->mutable_cpu_ptr());
-
-      for (int i = 0; i < count; ++i) {
-        diff_vec[i] = proto.diff(i);
-      }
+      std::copy(proto.diff().begin(), proto.diff().end(), cpu_diff);
     }
 
     return blob;
   }
 
+  /// \brief Constructs a Blob object with the specified dimensions.
+  ///
+  /// \param dims A list of integers representing the dimensions.
+  /// \param requires_diff Whether to allocate memory for diff (gradients).
   explicit Blob(std::initializer_list<int> dims, bool requires_diff = true)
       : shape_{dims} {
     CHECK(shape_.IsValid());
@@ -149,6 +154,9 @@ class Blob {
     }
   }
 
+  /// \brief Returns a string representation of the shape.
+  ///
+  /// \return A string describing the shape.
   std::string ShapeString() const {
     std::ostringstream oss;
 
@@ -161,7 +169,9 @@ class Blob {
     return oss.str();
   }
 
-  /// \return The size in bytes of an individual element.
+  /// \brief Returns the size in bytes of an individual element.
+  ///
+  /// \return The size of an element in bytes.
   constexpr size_t ElementSize() const { return sizeof(Dtype); }
 
   /// \brief The dimension of the index-th axis (or the negative index-th axis
@@ -173,10 +183,17 @@ class Blob {
     return shape_.DimAt(CanonicalDimIndex(index));
   }
 
+  /// \brief Returns the number of dimensions in the Blob.
+  ///
+  /// \return The number of dimensions.
   constexpr int NDim() const { return shape_.NDim(); }
+
+  /// \brief Returns the total number of elements in the Blob.
+  ///
+  /// \return The total number of elements.
   int NumElement() const { return shape_.numel(); }
 
-  void ToProto(BlobProto& proto, bool write_diff = false) const {}
+  void ToProto(BlobProto& proto, bool write_diff = false) const;
 
  private:
   /// \brief Returns the 'canonical' version of a (usually) user-specified axis,
@@ -195,73 +212,112 @@ class Blob {
     return (dim_index + max_dims) % max_dims;
   }
 
+  /// \brief Copies the data stored in the Blob to a destination buffer.
+  ///
+  /// \param dst A pointer to the destination buffer where the data will be
+  ///            copied.
   void CopyDataTo(Dtype* dst) const {
     auto cpu_data = CpuData();
 
     std::copy_n(cpu_data, NumElement(), dst);
   }
 
+  /// \brief Copies the diff (gradients) stored in the Blob to a destination
+  ///        buffer.
+  ///
+  /// \param dst A pointer to the destination buffer where the diff will be
+  ///            copied.
   void CopyDiffTo(Dtype* dst) const {
     auto cpu_diff = CpuDiff();
 
     std::copy_n(cpu_diff, NumElement(), dst);
   }
 
-  void CopyShapeTo(int* dst) const {
-    std::copy_n(shape_.DimBegin(), NDim(), dst);
-  }
+  /// \brief Copies the shape dimensions of the Blob to a destination buffer.
+  ///
+  /// \param dst A pointer to the destination buffer where the shape dimensions
+  ///            will be copied.
+  void CopyShapeTo(int* dst) const { std::copy_n(shape_.begin(), NDim(), dst); }
 
+  /// \brief Returns a const pointer to the data stored in CPU memory.
+  ///
+  /// \return A const pointer to the CPU data.
   const Dtype* CpuData() const {
-    CHECK(data_);
+    CHECK_NOTNULL(data_);
 
     return static_cast<const Dtype*>(data_->cpu_ptr());
   }
 
+  /// \brief Returns a mutable pointer to the data stored in CPU memory.
+  ///
+  /// \return A mutable pointer to the CPU data.
   Dtype* MutableCpuData() {
-    CHECK(data_);
+    CHECK_NOTNULL(data_);
 
     return static_cast<Dtype*>(data_->mutable_cpu_ptr());
   }
 
+  /// \brief Returns a const pointer to the diff (gradients) stored in CPU
+  ///        memory.
+  ///
+  /// \return A const pointer to the CPU diff.
   const Dtype* CpuDiff() const {
-    CHECK(diff_);
+    CHECK_NOTNULL(diff_);
 
     return static_cast<const Dtype*>(diff_->cpu_ptr());
   }
 
+  /// \brief Returns a mutable pointer to the diff (gradients) stored in CPU
+  ///        memory.
+  ///
+  /// \return A mutable pointer to the CPU diff.
   Dtype* MutableCpuDiff() {
-    CHECK(diff_);
+    CHECK_NOTNULL(diff_);
 
     return static_cast<Dtype*>(diff_->mutable_cpu_ptr());
   }
 
+  /// \brief Returns a const pointer to the data stored in GPU memory.
+  ///
+  /// \return A const pointer to the GPU data.
   const Dtype* GpuData() const {
-    CHECK(data_);
+    CHECK_NOTNULL(data_);
 
     return static_cast<const Dtype*>(data_->gpu_ptr());
   }
 
+  /// \brief Returns a mutable pointer to the data stored in GPU memory.
+  ///
+  /// \return A mutable pointer to the GPU data.
   Dtype* MutableGpuData() {
-    CHECK(data_);
+    CHECK_NOTNULL(data_);
 
     return static_cast<Dtype*>(data_->mutable_gpu_ptr());
   }
 
+  /// \brief Returns a const pointer to the diff (gradients) stored in GPU
+  ///        memory.
+  ///
+  /// \return A const pointer to the GPU diff.
   const Dtype* GpuDiff() const {
-    CHECK(diff_);
+    CHECK_NOTNULL(diff_);
 
     return static_cast<const Dtype*>(diff_->gpu_ptr());
   }
 
+  /// \brief Returns a mutable pointer to the diff (gradients) stored in GPU
+  ///        memory.
+  ///
+  /// \return A mutable pointer to the GPU diff.
   Dtype* MutableGpuDiff() {
-    CHECK(diff_);
+    CHECK_NOTNULL(diff_);
 
     return static_cast<Dtype*>(diff_->mutable_gpu_ptr());
   }
 
-  std::shared_ptr<SyncedMemory> data_;
-  std::shared_ptr<SyncedMemory> diff_;
-  Shape shape_;
+  std::shared_ptr<SyncedMemory> data_;  ///< Pointer to the data memory.
+  std::shared_ptr<SyncedMemory> diff_;  ///< Pointer to the diff memory.
+  Shape shape_;                         ///< Shape of the blob.
 };
 
 }  // namespace caffe

@@ -28,17 +28,17 @@ SyncedMemory::~SyncedMemory() {
 #endif
 }
 
-void SyncedMemory::ToCpu() {
+void SyncedMemory::ToCPU() {
   CheckDevice();
 
   switch (head_) {
     case kUninitialized:
       caffe_malloc_host(&cpu_ptr_, size_);
       // TODO(gc): is it necessary to do memset?
-      head_ = kAtCpu;
+      head_ = kAtCPU;
       break;
 
-    case kAtGpu:
+    case kAtGPU:
 #ifndef CPU_ONLY
       if (nullptr == cpu_ptr_) {
         caffe_malloc_host(&cpu_ptr_, size_);
@@ -50,7 +50,7 @@ void SyncedMemory::ToCpu() {
       REPORT_GPU_NOT_SUPPORTED();
 #endif
 
-    case kAtCpu:
+    case kAtCPU:
       break;
 
     case kSynced:
@@ -61,7 +61,7 @@ void SyncedMemory::ToCpu() {
   }
 }
 
-void SyncedMemory::ToGpu() {
+void SyncedMemory::ToGPU() {
   CheckDevice();
 
 #ifndef CPU_ONLY
@@ -69,10 +69,10 @@ void SyncedMemory::ToGpu() {
     case kUninitialized:
       gpu::caffe_malloc_device(&gpu_ptr_, size_);
       // TODO(gc): memset
-      head_ = kAtGpu;
+      head_ = kAtGPU;
       break;
 
-    case kAtCpu:
+    case kAtCPU:
       if (nullptr == gpu_ptr_) {
         gpu::caffe_malloc_device(&gpu_ptr_, size_);
       }
@@ -81,7 +81,7 @@ void SyncedMemory::ToGpu() {
       head_ = kSynced;
       break;
 
-    case kAtGpu:
+    case kAtGPU:
       break;
 
     case kSynced:
