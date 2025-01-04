@@ -34,4 +34,7 @@ void Blob<float>::ToProto(BlobProto& proto, bool write_diff) const {
   }
 }
 
+template <typename Dtype>
+void Blob<Dtype>::Update() {}
+
 }  // namespace caffe

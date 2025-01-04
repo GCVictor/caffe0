@@ -135,6 +135,18 @@ class Blob {
     return blob;
   }
 
+  /// \brief Serializes the Blob data and the diff into a protocol buffer
+  ///        message.
+  ///
+  /// This method converts the Blob's data (and optionally the diff) into a
+  /// protocol buffer message (`BlobProto`). This is typically used for saving
+  /// the Blob's state to disk or transmitting it over a network.
+  ///
+  /// \param proto The protocol buffer message to store the serialized data.
+  /// \param write_diff If true, the diff (gradients) will also be serialized;
+  ///                   otherwise, only data is serialized.
+  void ToProto(BlobProto& proto, bool write_diff = false) const;
+
   /// \brief Constructs a Blob object with the specified dimensions.
   ///
   /// \param dims A list of integers representing the dimensions.
@@ -202,17 +214,7 @@ class Blob {
     }
   }
 
-  /// \brief Serializes the Blob data and the diff into a protocol buffer
-  ///        message.
-  ///
-  /// This method converts the Blob's data (and optionally the diff) into a
-  /// protocol buffer message (`BlobProto`). This is typically used for saving
-  /// the Blob's state to disk or transmitting it over a network.
-  ///
-  /// \param proto The protocol buffer message to store the serialized data.
-  /// \param write_diff If true, the diff (gradients) will also be serialized;
-  ///                   otherwise, only data is serialized.
-  void ToProto(BlobProto& proto, bool write_diff = false) const;
+  void Update();
 
  private:
   /// \brief Returns the 'canonical' version of a (usually) user-specified axis,
