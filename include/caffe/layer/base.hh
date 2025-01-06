@@ -44,6 +44,9 @@ class Layer {
   void SetUp(const vector<Blob<Dtype>*>& bottom,
              const vector<Blob<Dtype>*>& top) {
     CheckBlobCounts(bottom, top);
+    LayerSetUp(bottom, top);
+    Reshape(bottom, top);
+    SetLossWeights(top);
   }
 
   /// \brief Returns the exact number of bottom blobs required by the layer,
@@ -140,7 +143,110 @@ class Layer {
     }
   }
 
- protected:
+  /// \brief Does layer-specific setup: your layer should implement this
+  ///        function as well as Reshape.
+  ///
+  /// This method should do one-time layer specific setup. This includes reading
+  /// and processing relevent parameters from the <code>layer_param_</code>.
+  /// Setting up the shapes of top blobs and internal buffers should be done in
+  /// <code>Reshape</code>, which will be called before the forward pass to
+  /// adjust the top blob sizes.
+  ///
+  /// \param bottom The preshaped input blobs.
+  /// \param top The allocated but unshaped output blobs, to be shaped by
+  ///            Reshape.
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+                          const vector<Blob<Dtype>*>& top) {}
+
+  /// \brief Adjust the shapes of top blobs and internal buffers to accommodate
+  ///        the shapes of the bottom blobs.
+  ///
+  /// This method should reshape top blobs as needed according to the shapes
+  /// of the bottom (input) blobs, as well as reshaping any internal buffers
+  /// and making any other necessary adjustments so that the layer can
+  /// accommodate the bottom blobs.
+  ///
+  /// \param bottom The preshaped input blobs.
+  /// \param top The allocated but unshaped output blobs, to be shaped by
+  ///            Reshape.
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+                       const vector<Blob<Dtype>*>& top) = 0;
+
+  /// \brief Return whether "anonymous" top blobs are created automatically
+  ///        by the layer.
+  ///
+  /// If this method returns true, Net::Init will create enough "anonymous" top
+  /// blobs to fulfill the requirement specified by ExactNumTopBlobs() or
+  /// MinTopBlobs().
+  virtual inline bool AutoTopBlobs() const { return false; }
+
+  /// \brief Return whether to allow force_backward for a given bottom blob
+  ///        index.
+  ///
+  /// If AllowForceBackward(i) == false, we will ignore the force_backward
+  /// setting and backpropagate to blob i only if it needs gradient information
+  /// (as is done when force_backward == false).
+  virtual inline bool AllowForceBackward(const int bottom_index) const {
+    return true;
+  }
+
+  /// \brief Specifies whether the layer should compute gradients w.r.t. a
+  ///        parameter at a particular index given by param_id.
+  ///
+  /// You can safely ignore false values and always compute gradients
+  /// for all parameters, but possibly with wasteful computation.
+  inline bool param_propagate_down(const int param_id) {
+    return (param_propagate_down_.size() > param_id)
+               ? param_propagate_down_[param_id]
+               : false;
+  }
+
+  /// \brief Sets whether the layer should compute gradients w.r.t. a
+  ///        parameter at a particular index given by param_id.
+  inline void set_param_propagate_down(const int param_id, const bool value) {
+    if (param_propagate_down_.size() <= param_id) {
+      param_propagate_down_.resize(param_id + 1, true);
+    }
+
+    param_propagate_down_[param_id] = value;
+  }
+
+  /// \brief Called by SetUp to initialize the weights associated with any top
+  ///        blobs in the loss function. Store non-zero loss weights in the diff
+  ///        blob.
+  ///
+  /// \param top The allocated but unshaped output blobs, to be shaped by
+  ///            Reshape.
+  void SetLossWeights(const vector<Blob<Dtype>*>& top) {
+    const int num_loss_weights = layer_param_.loss_weight_size();
+
+    if (num_loss_weights) {
+      CHECK_EQ(top.size(), num_loss_weights)
+          << "loss_weight must be "
+             "unspecified or specified once per top blob.";
+
+      for (int top_id = 0; top_id < top.size(); ++top_id) {
+        const Dtype loss_weight = layer_param_.loss_weight(top_id);
+
+        if (loss_weight == static_cast<Dtype>(0)) {
+          continue;
+        }
+
+        this->SetLoss(top_id, loss_weight);
+        top[top_id]->Assign(loss_weight);
+      }
+    }
+  }
+
+ private:
+  void SetLoss(const int top_index, const Dtype value) {
+    if (loss_.size() <= top_index) {
+      loss_.resize(top_index + 1, static_cast<Dtype>(0));
+    }
+
+    loss_[top_index] = value;
+  }
+
   /// The protobuf that stores the layer parameters.
   LayerParameter layer_param_;
   /// The phase: TRAIN or TEST.

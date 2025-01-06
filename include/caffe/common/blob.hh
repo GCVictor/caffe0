@@ -216,6 +216,15 @@ class Blob {
 
   void Update();
 
+  void Assign(size_t count, const Dtype value) {
+    CHECK_NOTNULL(diff_);
+
+    auto fn = diff_->IsOnGPU() ? gpu::caffe_memset : cpu::caffe_memset;
+    fn(GetDiff(), value, count);
+  }
+
+  void Assign(const Dtype value) { Assign(NumElement(), value); }
+
  private:
   /// \brief Returns the 'canonical' version of a (usually) user-specified axis,
   ///        allowing for negative indexing (e.g., -1 for the last axis).

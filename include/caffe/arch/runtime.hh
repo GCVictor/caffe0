@@ -2,13 +2,12 @@
 
 #include <cstdlib>
 
+#include "caffe/arch/cpu/runtime.hh"
 #include "caffe/util/device_alternative.hh"
 #include "caffe/util/macros.hh"
 
 #ifndef CPU_ONLY
 #include "caffe/arch/gpu/runtime.hh"
-#else
-#include "caffe/arch/cpu/runtime.hh"
 #endif
 
 namespace caffe {
